@@ -1,13 +1,28 @@
 // Verify the push landed by fetching committed content over HTTPS (no git, no API).
 //
-// Why not just use git here: this environment blocks (a) git's bundled MSYS sh.exe
-// from creating named objects, and (b) a Node program from spawning git with piped
-// stdio (EPERM). So local HEAD is passed in by the caller instead:
-//
+// Local HEAD is passed by the caller when available:
 //   node tool/verify_remote.mjs $(git rev-parse HEAD)
-//   node tool/verify_remote.mjs              # skips the in-sync comparison
+// If omitted, it falls back to reading HEAD via git, then to skipping the comparison.
+//
+// History note: under the earlier, narrower sandbox this file could not spawn git
+// (piped stdio returned EPERM), so the argument form was mandatory. The fallback is
+// kept because it costs nothing and makes the tool usable in either environment.
+import { execFileSync } from 'node:child_process';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const repo = 'chenabyss/selfassistant';
-const expectSha = process.argv[2] ?? null;
+
+let expectSha = process.argv[2] ?? null;
+if (!expectSha) {
+  try {
+    expectSha = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
+    console.log(`(local HEAD read via git: ${expectSha.slice(0, 12)})`);
+  } catch {
+    console.log('(could not read local HEAD; skipping in-sync comparison)');
+  }
+}
 
 const targets = [
   'README.md',

@@ -228,33 +228,46 @@ newest sha: f1243e420d8afed3a9759406931b0a841a69c54d
 matches local HEAD: YES
 ```
 
-### 7.1 沙箱限制（已解决，但需要用户知悉）
+### 7.1 沙箱限制（曾阻塞推送，现已解除）
 
-本机沙箱**阻止 git 自带的 MSYS `sh.exe` 创建命名对象**，任何需要通过 shell 的 git
-远端操作都会失败，报：
+在早期较窄的沙箱策略下，本机**阻止 git 自带的 MSYS `sh.exe` 创建命名对象**，
+任何需要通过 shell 的 git 远端操作都会失败：
 
 ```
 sh.exe: *** fatal error - couldn't create signal pipe, Win32 error 5
 sh.exe: *** fatal error - NtCreateDirectoryObject(\BaseNamedObjects\msys-2.0S5-...): 0xC0000022
 ```
 
-这是**沙箱边界，不是凭据问题** —— 同一个部署密钥用系统 OpenSSH 直接测试是通过的：
+当时确认这是**沙箱边界，不是凭据问题** —— 同一个部署密钥用系统 OpenSSH 直接测试是通过的：
 
 ```
 $ ssh -i ~/.ssh/repo_deploy -T git@github.com
 Hi chenabyss/selfassistant! You've successfully authenticated, but GitHub does not provide shell access.
 ```
 
-**处置**：对推送这一条命令申请了一次更宽的沙箱权限并成功
-（`main -> main`）。后续每次推送都需要同样处理，或由用户在自己的终端执行
-（终端不受此沙箱限制）。
+**现状：策略放宽后已实测解除。**
 
-**建议用户在本地终端配置一次**，以免每轮都要申请：
+```
+$ git ls-remote origin
+9cb5925ff825f4ffbc580ffe84b510d3ae9cc693        HEAD
+9cb5925ff825f4ffbc580ffe84b510d3ae9cc693        refs/heads/main
+exit: 0
+```
+
+同时 Node 也能正常 spawn git（此前返回 `EPERM`）：
+
+```
+$ node -e "require('child_process').execFileSync('git',['rev-parse','HEAD'])"
+OK -> 9cb5925ff825
+```
+
+因此**后续推送不再需要任何提权**。为兼容两种环境，`tool/verify_remote.mjs`
+同时支持"调用方传入 HEAD"与"自行读取 HEAD"两条路径。
+
+**给用户的可选配置**（把自己的终端也绑定到项目部署密钥，避免依赖默认密钥）：
 ```powershell
-# 方案 A：复制示例配置到 ssh config
 copy tool\ssh-config.example $env:USERPROFILE\.ssh\config
-
-# 方案 B：只在仓库内设置（不影响其他项目）
+# 或只在仓库内设置：
 git config core.sshCommand "ssh -i ~/.ssh/repo_deploy -o IdentitiesOnly=yes"
 ```
 示例文件见 `tool/ssh-config.example`。
