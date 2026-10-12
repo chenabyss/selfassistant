@@ -52,6 +52,13 @@ jobs:
       - name: 版本约束一致性（pubspec vs tool/versions.yaml）
         run: node tool/check_versions.mjs
 
+      # 首次 CI 失败正是因为 pubspec 依赖未按字母序排列：
+      # analysis_options.yaml 启用了 sort_pub_dependencies，而 `flutter analyze`
+      # 对任何 issue（含 info）都以退出码 1 结束。这个廉价检查让同类问题在
+      # Flutter 安装之前就暴露，缩短反馈时间。
+      - name: pubspec 依赖字母序（sort_pub_dependencies 前置检查）
+        run: node tool/check_pubspec_order.mjs
+
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
