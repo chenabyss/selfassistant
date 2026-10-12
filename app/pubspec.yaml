@@ -1,0 +1,49 @@
+name: life_app
+description: 个人生活信息系统 V1 —— 本地优先的生活记录与行动管理应用（Windows + Android）。
+publish_to: none
+
+# 版本约束的唯一权威来源是 ../tool/versions.yaml。
+# 下方 environment 的区间必须与其一致（tool/check_versions.dart 会断言）。
+environment:
+  # 见 tool/versions.yaml：package:sqlite3 3.7.0 要求 >=3.10.0 <4.0.0
+  sdk: ">=3.10.0 <4.0.0"
+  # 3.38.1 是 flutter_local_notifications 22.3.2 的下限；
+  # 3.38 才有 stable 的 build hooks（package:sqlite3 3.x 依赖）。
+  flutter: ">=3.38.1"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # --- 数据库 ---
+  # 注意：不要引入 sqlite3_flutter_libs / sqlcipher_flutter_libs（已 EOL），
+  # 也不要引入 drift_flutter（依赖链指向它们）。原生 SQLite 由 package:sqlite3
+  # 的 build hooks 打包（内含 SQLite 3.53.4，含 FTS5）。
+  drift: ^2.35.2
+  sqlite3: ^3.7.0
+
+  # --- 时间与时区 ---
+  # 瞬时存 UTC 毫秒 + IANA tz_id；本地日期存 YYYY-MM-DD。
+  timezone: ^0.11.1
+  flutter_timezone: ^5.1.1
+
+  # --- 平台能力 ---
+  # 通知按"尽力而为"建模（见 docs/decisions/0006）：
+  # 状态落库、能力查询、启动补课。
+  flutter_local_notifications: ^22.3.2
+  path_provider: ^2.1.6
+  file_selector: ^1.1.0
+  flutter_secure_storage: ^11.2.0
+
+  # --- 备份与完整性 ---
+  archive: ^4.5.1
+  crypto: ^3.0.7
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  test: ^1.25.0
+
+flutter:
+  uses-material-design: true

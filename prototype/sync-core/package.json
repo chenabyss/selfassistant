@@ -1,0 +1,10 @@
+{
+  "name": "sync-core-prototype",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Executable reference prototype of the sync merge core described in docs/sync-protocol.md. Node-only, zero dependencies, used to validate idempotency / conflict / tombstone / cursor semantics before the Dart implementation.",
+  "type": "commonjs",
+  "scripts": {
+    "test": "node test/run.js"
+  }
+}

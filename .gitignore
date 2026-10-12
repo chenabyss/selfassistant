@@ -1,0 +1,82 @@
+# --- Flutter / Dart ---
+app/.dart_tool/
+app/.packages
+app/build/
+app/.flutter-plugins
+app/.flutter-plugins-dependencies
+app/pubspec.lock.bak
+**/*.g.dart
+**/*.freezed.dart
+
+# --- 本地工具链 ---
+app/.fvm/
+app/.fvmrc.local
+.flutter-version
+
+# --- 平台构建产物 ---
+app/windows/flutter/ephemeral/
+app/android/.gradle/
+app/android/local.properties
+app/android/app/debug/
+app/android/app/profile/
+app/android/app/release/
+app/ios/
+app/macos/
+app/linux/
+app/web/
+app/.metadata
+
+# --- Node（原型与工具脚本）---
+node_modules/
+prototype/**/node_modules/
+*.log
+npm-debug.log*
+
+# --- 编辑器 / 系统 ---
+.vscode/
+.idea/
+*.iml
+*.swp
+*~
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# --- 敏感信息：绝不入库 ---
+# SSH 私钥、部署密钥、设备序列号、服务端凭据、备份文件
+*.pem
+*.key
+*_deploy
+*_deploy.pub
+.env
+.env.*
+secrets/
+certs/
+*.pfx
+*.p12
+
+# --- 用户数据与备份（绝不入库）---
+# 真实个人数据、备份归档、附件
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+life-backup-*.zip
+blobs/
+backups/
+*.db
+
+# --- 构建与测试临时产物 ---
+coverage/
+test-results/
+bench.txt
+tmp/
+*.tmp
+trace.jsonl
+
+# --- 本地临时文件（不入库）---
+# .git-known-hosts 是 git 在本工作区生成的 known_hosts（含 GitHub 公钥，
+# 不含私钥），属于本机状态，不应提交。
+.git-known-hosts
+DeployKey.txt
+# 临时调试脚本（test/debug-*.js 仅为排查用，不应进入仓库）
+prototype/**/test/debug-*.js

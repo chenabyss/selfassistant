@@ -1,0 +1,58 @@
+# 静态分析配置
+#
+# 目的不只是"代码风格"，更重要的是**用 lint 守住架构规则**：
+# domain 与 application 是纯 Dart 层，不得依赖 Flutter、drift 或 dart:io。
+# 那些跨层依赖会在编译期无法捕获，因此必须由 lint + tool/check_layering.dart 双重守护。
+
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  language:
+    strict-casts: true
+    strict-inference: true
+    strict-raw-types: true
+  errors:
+    # 未使用的导入/变量在分层检查里是噪声来源，提升为错误
+    unused_import: error
+    unused_local_variable: error
+    # 缺失返回类型会让纯 Dart 层的边界模糊
+    always_declare_return_types: error
+    # 不允许隐式 dynamic（会掩盖协议字段名拼写错误：
+    # 原型中正是因为 op_id / opId 命名不一致而出现过真实缺陷）
+    avoid_dynamic_calls: error
+  exclude:
+    - "**/*.g.dart"
+    - "**/*.freezed.dart"
+    - "build/**"
+
+linter:
+  rules:
+    # --- 正确性优先 ---
+    always_declare_return_types: true
+    avoid_dynamic_calls: true
+    avoid_slow_async_io: true
+    cancel_subscriptions: true
+    close_sinks: true
+    only_throw_errors: true
+    throw_in_finally: true
+    unawaited_futures: true        # 快速记录"写完才算成功"依赖这一点
+    use_build_context_synchronously: true
+
+    # --- 数据安全相关 ---
+    # 禁止把可能为 null 的值直接当作非空使用（迁移与合并路径上曾因此丢数据）
+    avoid_type_to_string: true
+    prefer_final_locals: true
+    prefer_final_in_for_each: true
+
+    # --- 可维护性 ---
+    directives_ordering: true
+    prefer_single_quotes: true
+    require_trailing_commas: true
+    sort_pub_dependencies: true
+    unnecessary_lambdas: true
+    use_super_parameters: true
+
+# 分层守护说明（由 tool/check_layering.dart 强制，lint 无法表达）：
+#   packages/domain/**       不得 import package:flutter/*、package:drift/*、dart:io
+#   packages/application/**  同上，且不得 import infrastructure
+#   packages/infrastructure/** 可以依赖前两层，反之不可

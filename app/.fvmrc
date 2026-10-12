@@ -1,0 +1,5 @@
+{
+  "flutter": "3.47.0",
+  "flavor": null,
+  "comment": "版本约束的权威来源是 tool/versions.yaml；本文件供 FVM 使用。下限 3.38.1（见该文件注释）。"
+}

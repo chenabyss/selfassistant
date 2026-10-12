@@ -1,0 +1,36 @@
+# Git 的 SSH 配置 —— 供本地/用户终端使用
+#
+# 用途：把 GitHub 访问绑定到项目专用的部署密钥，避免依赖默认密钥或代理。
+# 本项目的开发环境有沙箱限制（见 docs/phase-0-report.md §3.1），
+# 因此本文件是**给用户在自己的终端里执行**用的，不是 CI 需要的。
+#
+# 使用方式（二选一）：
+#
+# A) 直接使用本文件（推荐）
+#    Windows: 复制到 %USERPROFILE%\.ssh\config
+#    Linux/macOS: 复制到 ~/.ssh/config，并 chmod 600
+#    之后 git 会自动走 selfassistant 这个 host 别名。
+#
+# B) 不复制文件，改为在仓库内设置（只影响本仓库）
+#    git config core.sshCommand \
+#      "ssh -i ~/.ssh/repo_deploy -o IdentitiesOnly=yes"
+
+Host github-selfassistant
+    HostName github.com
+    User git
+    # 项目专用部署密钥（公钥已添加到仓库 Deploy keys，需勾选 Allow write access）
+    IdentityFile ~/.ssh/repo_deploy
+    IdentitiesOnly yes
+    # 只使用这一个密钥，避免 ssh-agent 里的其他密钥被依次尝试（会导致卡住）
+    PreferredAuthentications publickey
+    StrictHostKeyChecking accept-new
+
+# 如果希望直接用 git@github.com:... 而不改 remote，
+# 就把下面的 IdentityFile 也指到该密钥（注意：会影响这台机器上所有 GitHub 访问）。
+#
+# Host github.com
+#     HostName github.com
+#     User git
+#     IdentityFile ~/.ssh/repo_deploy
+#     IdentitiesOnly yes
+#     PreferredAuthentications publickey

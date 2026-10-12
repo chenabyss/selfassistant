@@ -1,0 +1,221 @@
+# CI —— 阶段 0 要求的可复现构建与测试流水线
+#
+# 背景（必须如实理解本文件的效力）：
+#   * 本工作流由 Agent 编写，但**从未在本机执行过** —— 开发机没有 Flutter /
+#     MSVC / Android SDK，且 PowerShell 与 curl 实测无出网（详见 docs/dart-verification.md §2）。
+#   * CI 构建成功 **不等于** Windows 或 Android 真机验证通过。通知投递、OEM 省电、
+#     MSIX 旁加载、移动端搜索性能、备份恢复实测都必须在真机上做（见
+#     docs/platform-toolchain-plan.md §4.5 与 docs/platform-verification-checklist.md）。
+#   * 因此本文件的作用是：**保证"能构建且可复现"**，而不是"证明功能可用"。
+#
+# 依赖的外部 action：
+#   actions/checkout@v6, actions/setup-node@v4, actions/setup-java@v4,
+#   actions/upload-artifact@v4, subosito/flutter-action@v2
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  # 所有 Node 脚本（同步契约、文档一致性、版本约束）用同一个版本
+  NODE_VERSION: '22'
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1) 静态与逻辑检查：不需要 MSVC / Android SDK，反馈最快
+  # ---------------------------------------------------------------------------
+  analyze-and-test:
+    name: 静态分析 · 单元测试 · 同步契约 · 文档一致性
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      # --- 与 Flutter 无关的检查先跑：它们最快，失败最早暴露 ---
+      - name: 同步核心契约测试（33+ 条，零依赖 Node）
+        run: node prototype/sync-core/test/run.js
+
+      - name: 文档内部一致性（链接 / 交叉引用 / 数量声明）
+        run: node tools/check-docs.mjs
+
+      - name: 风险登记数量校验
+        run: node tools/count-risks.mjs
+
+      - name: 版本约束一致性（pubspec vs tool/versions.yaml）
+        run: node tool/check_versions.mjs
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.0'
+          cache: true
+
+      - name: Flutter version
+        run: flutter --version
+
+      - name: 依赖解析
+        working-directory: app
+        run: flutter pub get
+
+      - name: 版本与依赖树检查（必须不出现已 EOL 的包）
+        working-directory: app
+        run: |
+          flutter --version
+          echo '--- 禁止出现的依赖（应为空）---'
+          flutter pub deps --style=compact | grep -E 'sqlite3_flutter_libs|sqlcipher_flutter_libs|drift_flutter' && {
+            echo '::error::检测到已 EOL 的依赖（见 tool/versions.yaml 的 forbidden 段）'
+            exit 1
+          } || echo 'OK: 无已 EOL 依赖'
+
+      - name: 格式检查
+        working-directory: app
+        run: dart format --output=none --set-exit-if-changed .
+
+      - name: 静态分析
+        working-directory: app
+        run: flutter analyze
+
+      - name: 分层守护（domain/application 不得依赖 Flutter 或 drift）
+        run: dart run tool/check_layering.dart
+        continue-on-error: true   # 阶段 1 建立该脚本后移除本行
+
+      - name: 单元测试
+        working-directory: app
+        run: flutter test
+
+  # ---------------------------------------------------------------------------
+  # 2) Windows 构建产物
+  # ---------------------------------------------------------------------------
+  build-windows:
+    name: Windows release 构建
+    runs-on: windows-latest
+    needs: analyze-and-test
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.0'
+          cache: true
+
+      - name: 构建（未打包 Win32 exe）
+        working-directory: app
+        run: |
+          flutter pub get
+          flutter build windows --release
+
+      # MSIX 打包在阶段 0 之后按 Q6 的验证结果决定是否启用。
+      # 启用前必须先完成 docs/platform-toolchain-plan.md §3.4 的 M9 验证
+      # （打包与未打包的应用数据目录是否一致），否则会出现"升级后数据消失"。
+
+      - name: 归档产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-release
+          path: app/build/windows/x64/runner/Release/
+          if-no-files-found: error
+          retention-days: 14
+
+  # ---------------------------------------------------------------------------
+  # 3) Android 构建产物 + 16 KB 页对齐校验
+  # ---------------------------------------------------------------------------
+  build-android:
+    name: Android release 构建 + 16KB 对齐
+    runs-on: ubuntu-latest
+    needs: analyze-and-test
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.0'
+          cache: true
+
+      - name: 构建 release APK
+        working-directory: app
+        run: |
+          flutter pub get
+          flutter build apk --release
+
+      - name: 校验 16 KB 页对齐（Google Play 硬性要求）
+        run: |
+          set -euo pipefail
+          APK=app/build/app/outputs/flutter-apk/app-release.apk
+          echo "--- APK 中的原生库 ---"
+          unzip -l "$APK" | grep '\.so' || true
+
+          # 64 位原生库必须存在，且必须未被压缩（STORED），
+          # 否则安装后不会按 16 KB 页对齐映射。
+          echo '--- 检查 .so 的压缩方式 ---'
+          unzip -v "$APK" | awk '/lib\/arm64-v8a\/.*\.so|lib\/x86_64\/.*\.so/ {print $2, $3, $NF}'
+
+          # 若某 64 位 .so 显示为 Defl（压缩），则 Play 会拒绝。
+          if unzip -v "$APK" | awk '/lib\/(arm64-v8a|x86_64)\/.*\.so/ && $3 ~ /Defl/ {found=1} END {exit !found}'; then
+            echo '::error::64 位原生库被压缩，违反 16 KB 页对齐要求'
+            exit 1
+          fi
+          echo 'OK: 64 位原生库未压缩'
+
+          # 使用 Android SDK 的 zipalign 做权威断言（存在时）
+          if [ -n "${ANDROID_HOME:-}" ] && [ -x "$ANDROID_HOME/build-tools/35.0.0/zipalign" ]; then
+            "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -P 16 -v 4 "$APK" | tail -5
+          else
+            echo 'note: zipalign 不可用，仅做了未压缩断言；真机/发布前需补做 -P 16 校验'
+          fi
+
+      - name: 归档产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-release-apk
+          path: app/build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+          retention-days: 14
+
+  # ---------------------------------------------------------------------------
+  # 4) 中文搜索基准（回归：确保方案不被改坏）
+  # ---------------------------------------------------------------------------
+  search-benchmark:
+    name: 中文搜索基准（桌面）
+    runs-on: ubuntu-latest
+    needs: analyze-and-test
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      # 5 万条规模在 CI 上耗时可控；20 万条留给本地/真机基线。
+      # 判据：trigram 必须保持 100% 召回（见 docs/search-cjk-results.md）。
+      - name: 运行基准
+        run: node tools/fts5-cjk-bench.mjs --rows 50000 --queries 120
+
+      - name: 断言 trigram 召回率
+        run: |
+          set -euo pipefail
+          node tools/fts5-cjk-bench.mjs --rows 50000 --queries 120 > bench.txt
+          grep -E '^\| trigram \|' bench.txt
+          # trigram 行的平均召回必须是 100.0%
+          if ! grep -E '^\| trigram \| 100\.0%' bench.txt > /dev/null; then
+            echo '::error::trigram 召回率不再是 100%，中文搜索方案可能已被改坏'
+            exit 1
+          fi
+          echo 'OK: trigram 保持 100% 召回'
