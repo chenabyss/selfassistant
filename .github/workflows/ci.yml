@@ -59,6 +59,11 @@ jobs:
       - name: pubspec 依赖字母序（sort_pub_dependencies 前置检查）
         run: node tool/check_pubspec_order.mjs
 
+      # Dart 结构检查：开发机没有 Dart/Flutter，无法本地编译，因此用它拦住
+      # 手改常见的括号/字符串问题。它不是解析器，**不替代** 下面的 flutter analyze。
+      - name: Dart 结构检查（括号与字符串平衡）
+        run: node tool/check_dart_syntax.mjs
+
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:

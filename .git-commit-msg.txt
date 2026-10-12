@@ -1,0 +1,24 @@
+fix(ci): 新增首个 Dart 测试，修复 "Test directory not found"
+
+CI 第二次运行的失败原因：
+  Test directory "test" not found.   (flutter test 退出码 1)
+
+根因：CI 声明了 flutter test，但阶段 0 只写了 Node 原型测试，
+app/ 下没有任何 Dart 测试，连 test/ 目录都不存在。
+
+修复不是跳过该步骤，而是补上真实测试 app/test/health_test.dart：
+- 断言 SQLite 打包版本不低于 3.51.3（WAL-reset 缺陷修复版本）
+- 断言 dart/flutter SDK 下限与 pubspec 一致
+- 断言 pubspec 与已解析依赖图中没有 3 个已 EOL 的包
+- 断言 FTS5 在版本约束中声明（中文搜索方案的硬前提）
+
+过程中发现并修复两个我自己的错误：
+1. 非 raw 字符串里写正则：Dart 会把 $key 当字符串插值，改用 r'...'
+2. 版本读取缺少块上下文：minimum 在 flutter: 与 dart: 下同名，
+   首版把 dart.minimum 错读成 3.38.1，改为按块读取，
+   并加测试断言两者不同（相同即说明块上下文丢失）
+
+因本机无 Dart/Flutter，新增两个本地检查以保证推送质量：
+- tool/check_dart_syntax.mjs：结构检查（括号/字符串/制表符）
+- tool/dryrun_health_test.mjs：用 Node 复刻 Dart 断言逻辑跑真实文件
+两者均接入 CI。
