@@ -1,14 +1,20 @@
 // Verify the push landed by fetching committed content over HTTPS (no git, no API).
-// Works for public repos; a private repo returns 404 unauthenticated, which is
-// itself informative (we then fall back to reporting what we can conclude).
+//
+// Why not just use git here: this environment blocks (a) git's bundled MSYS sh.exe
+// from creating named objects, and (b) a Node program from spawning git with piped
+// stdio (EPERM). So local HEAD is passed in by the caller instead:
+//
+//   node tool/verify_remote.mjs $(git rev-parse HEAD)
+//   node tool/verify_remote.mjs              # skips the in-sync comparison
 const repo = 'chenabyss/selfassistant';
-const expectSha = 'f1243e420d8afed3a9759406931b0a841a69c54d';
+const expectSha = process.argv[2] ?? null;
 
 const targets = [
   'README.md',
   '.github/workflows/ci.yml',
   'tool/versions.yaml',
   'docs/phase-0-report.md',
+  'docs/platform-verification-checklist.md',
   'prototype/sync-core/test/audit.test.js',
 ];
 
@@ -28,7 +34,7 @@ const targets = [
 
   console.log(`\nfetched ${ok}/${targets.length} files from branch main`);
 
-  // Commit listing via the commits Atom feed needs no auth for public repos.
+  // Commit listing via the commits Atom feed needs no auth.
   try {
     const r = await fetch(`https://github.com/${repo}/commits/main.atom`, {
       headers: { 'user-agent': 'dsh-verify' },
@@ -36,11 +42,14 @@ const targets = [
     if (r.ok) {
       const xml = await r.text();
       const ids = [...xml.matchAll(/<id>tag:github\.com,2008:Grit::Commit\/([0-9a-f]{40})<\/id>/g)].map((m) => m[1]);
-      console.log(`\ncommits in atom feed: ${ids.length}`);
-      console.log(`newest sha: ${ids[0] ?? '(none)'}`);
-      console.log(`matches local HEAD: ${ids[0] === expectSha ? 'YES' : 'NO'}`);
-      const titles = [...xml.matchAll(/<title>\s*([^<]+?)\s*<\/title>/g)].map((m) => m[1]).slice(1, 3);
-      for (const t of titles) console.log(`  title: ${t.split('\n')[0].slice(0, 70)}`);
+      console.log(`\ncommits on remote: ${ids.length}`);
+      console.log(`newest remote sha: ${ids[0] ?? '(none)'}`);
+      if (expectSha) {
+        console.log(`local  HEAD   sha: ${expectSha}`);
+        console.log(`IN SYNC          : ${ids.includes(expectSha) ? 'YES' : 'NO (local HEAD not found on remote)'}`);
+      }
+      const titles = [...xml.matchAll(/<title>\s*([^<]+?)\s*<\/title>/g)].map((m) => m[1]).slice(1, 4);
+      for (const t of titles) console.log(`  - ${t.split('\n')[0].slice(0, 74)}`);
     } else {
       console.log(`\natom feed: HTTP ${r.status} (private repo or rate limited)`);
     }
