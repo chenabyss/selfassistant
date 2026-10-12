@@ -176,7 +176,7 @@
 | 1 | Flutter SDK | ≥3.38.1（建议 3.47） | `sqlite3` 的 build hooks 需 ≥3.38；`tray_manager` 需 ≥3.47 |
 | 2 | **MSVC Build Tools**（「Desktop development with C++」） | 最新 | 微软支持**只装 Build Tools 不装 IDE**；`flutter doctor` 是否接受**需实测** |
 | 3 | Android SDK + platform-tools + JDK 17+ | — | 可用 Android Studio 一并安装，或 `cmdline-tools` |
-| 4 | Android 真机 | Android 10+（Q7 候选） | **模拟器无法验证 OEM 省电策略与 16 KB 页对齐** |
+| 4 | Android 真机 | **已具备**：华为 Mate 20 X（EVR-AL00）/ HarmonyOS 4.0.0 / 麒麟 980 | **但仍需 `adb` 与 Android SDK 才能部署**；模拟器无法验证 OEM 省电策略 |
 
 ### 4.3 Windows 上的网络问题（本机实测到的真实障碍）
 
@@ -361,9 +361,10 @@ jobs:
 | --- | --- | --- |
 | **Q6（更新）** | Windows 发行形态？ | (1) 未打包（最省事，但**通知不可取消/不可枚举**，用户点了就没了）(2) **MSIX**（解决通知管理与激活，需证书与旁加载，**必须先验证数据目录一致性 M9**）(3) 未打包 + Task Scheduler 独立入口（可后台唤醒，额外工程） |
 | **Q8（更新）** | 工具链落地方式？ | (1) 本机安装（需管理员权限，可做真机验证）(2) 仅 CI（可构建、可复现，**不能**做真机通知/性能/MSIX 验证）(3) 两者都做（推荐） |
-| **Q15（新增）** | 若选 CI 路线，代码托管在哪里？（GitHub / 自建 GitLab / 本地） | 决定 CI 配置能否直接使用 |
-| **Q16（新增）** | Android 真机是否可用？（型号与系统版本） | 直接决定 §1 的通知行为、OEM 省电策略、16 KB 对齐、中文搜索移动端性能能否验证 |
-| **Q17（新增）** | Windows 测试机是否允许安装 MSIX 与自签证书？ | 决定 M4–M8、M11 能否执行 |
+| **Q15（已解决）** | 代码托管在哪？ | ✅ **GitHub**：`chenabyss/selfassistant`，首个提交已推送（SHA `f1243e4`） |
+| **Q16（已部分回答）** | Android 真机是否可用？ | ✅ **已提供**：华为 Mate 20 X / EVR-AL00 / **HarmonyOS 4.0.0** / 麒麟 980 / USB 调试已开。**注意是 HarmonyOS 而非原生 Android**，结论只能标注为"HarmonyOS 4.0.0 上验证"；仍需 `adb` 才能部署 |
+| **Q17** | Windows 测试机是否允许安装 MSIX 与自签证书？ | 决定 M4–M8、M11 能否执行 |
+| **Q18（新增）** | 是否愿意安装 Android SDK platform-tools（`adb`）？ | **真机已就绪但无法部署** —— 这是当前性价比最高的一步：装上 `adb` + Android SDK 就能把清单 C 组（8 项）与 A4 从"阻塞"推进到"可执行" |
 
 ---
 
